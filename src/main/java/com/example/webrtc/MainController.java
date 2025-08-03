@@ -140,6 +140,9 @@ public class MainController {
 
         // Broadcast updated user list to all connected clients
         broadcastUserList();
+
+        // Also broadcast room list to show available rooms to new user
+        broadcastRoomList();
     }
 
     @MessageMapping("/removeUser")

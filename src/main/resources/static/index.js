@@ -275,7 +275,17 @@ function removeVideoElement(userId) {
     }
 }
 
+function requestRoomList() {
+    if (stompClient && isConnected) {
+        // Send a message to get current room list
+        console.log('Requesting room list...');
+        // The server will automatically broadcast room list, so we don't need a specific endpoint
+        // But we can trigger a broadcast by sending any room-related action
+    }
+}
+
 function updateRoomsList(rooms) {
+    const previousRoomsCount = availableRooms.size;
     availableRooms.clear();
 
     if (!roomsList) return;
@@ -285,7 +295,19 @@ function updateRoomsList(rooms) {
         return;
     }
 
-    rooms.forEach(room => availableRooms.set(room.roomId, room));
+    // Check for new rooms to show notification
+    const newRooms = [];
+    rooms.forEach(room => {
+        if (!availableRooms.has(room.roomId)) {
+            newRooms.push(room);
+        }
+        availableRooms.set(room.roomId, room);
+    });
+
+    // Show notification for new rooms (only if user was already connected)
+    if (previousRoomsCount > 0 && newRooms.length > 0 && !currentRoomId) {
+        showRoomNotification(newRooms);
+    }
 
     roomsList.innerHTML = rooms.map(room => `
         <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
@@ -300,6 +322,71 @@ function updateRoomsList(rooms) {
             ` : ''}
         </div>
     `).join('');
+
+    // Show welcome message for first-time users with available rooms
+    if (rooms.length > 0 && !currentRoomId && isConnected) {
+        showWelcomeRoomsMessage(rooms);
+    }
+}
+
+function showRoomNotification(newRooms) {
+    // Create and show a notification for new available rooms
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-blue-600 text-white p-4 rounded-lg shadow-lg z-50 max-w-sm';
+    notification.innerHTML = `
+        <div class="flex items-start">
+            <svg class="w-6 h-6 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+                <h4 class="font-semibold mb-1">New Room${newRooms.length > 1 ? 's' : ''} Available!</h4>
+                <p class="text-sm">${newRooms.map(room => room.roomId).join(', ')} ${newRooms.length > 1 ? 'are' : 'is'} now available to join.</p>
+                <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-xs underline mt-2">Dismiss</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(notification);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
+}
+
+function showWelcomeRoomsMessage(rooms) {
+    // Show welcome message only once per session
+    if (sessionStorage.getItem('welcomeShown')) return;
+
+    setTimeout(() => {
+        const welcomeNotification = document.createElement('div');
+        welcomeNotification.className = 'fixed top-4 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-50 max-w-sm';
+        welcomeNotification.innerHTML = `
+            <div class="flex items-start">
+                <svg class="w-6 h-6 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <div>
+                    <h4 class="font-semibold mb-1">Welcome to Video Chat!</h4>
+                    <p class="text-sm mb-2">There ${rooms.length > 1 ? 'are' : 'is'} ${rooms.length} active room${rooms.length > 1 ? 's' : ''} available to join.</p>
+                    <p class="text-xs">You can join a room for group video calls or start a 1-on-1 call with any online user.</p>
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-xs underline mt-2">Got it!</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(welcomeNotification);
+        sessionStorage.setItem('welcomeShown', 'true');
+
+        // Auto-remove after 8 seconds
+        setTimeout(() => {
+            if (welcomeNotification.parentElement) {
+                welcomeNotification.remove();
+            }
+        }, 8000);
+    }, 1500); // Show after a short delay to let user get oriented
 }
 
 function updateCurrentRoomUI(roomId, participants) {
@@ -810,6 +897,8 @@ function autoConnect() {
         // Request current user list and room list
         setTimeout(() => {
             stompClient.send("/app/getUserList", {}, "");
+            // Request available rooms immediately after connection
+            requestRoomList();
         }, 500);
 
         }, error => {
