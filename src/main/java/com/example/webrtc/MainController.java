@@ -21,8 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import jakarta.validation.Valid;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Controller
@@ -31,6 +30,10 @@ public class MainController {
     // Thread-safe collections for managing users and sessions
     private final ConcurrentHashMap<String, String> users = new ConcurrentHashMap<>(); // userId -> sessionId
     private final ConcurrentHashMap<String, String> sessions = new ConcurrentHashMap<>(); // sessionId -> userId
+
+    // Group call management
+    private final ConcurrentHashMap<String, Set<String>> rooms = new ConcurrentHashMap<>(); // roomId -> Set of userIds
+    private final ConcurrentHashMap<String, String> userRooms = new ConcurrentHashMap<>(); // userId -> roomId
 
     @Autowired
     SimpMessagingTemplate simpMessagingTemplate;
@@ -162,10 +165,13 @@ public class MainController {
             users.remove(user);
             // Update user online status in database
             userService.setUserOnline(user, false);
+            // Leave any room the user was in
+            leaveCurrentRoom(user);
             System.out.println("User disconnected: " + user + " (session: " + sessionId + ")");
 
             // Broadcast updated user list to all connected clients
             broadcastUserList();
+            broadcastRoomList();
         }
     }
 
@@ -190,6 +196,170 @@ public class MainController {
     public void getUserList(){
         System.out.println("Getting user list");
         broadcastUserList();
+    }
+
+    @MessageMapping("/createRoom")
+    public void createRoom(String roomData, StompHeaderAccessor headerAccessor) {
+        try {
+            JSONObject jsonObject = new JSONObject(roomData);
+            String roomId = jsonObject.getString("roomId");
+            String creator = jsonObject.getString("creator");
+
+            System.out.println("Creating room: " + roomId + " by " + creator);
+
+            // Create new room
+            Set<String> roomUsers = new HashSet<>();
+            roomUsers.add(creator);
+            rooms.put(roomId, roomUsers);
+            userRooms.put(creator, roomId);
+
+            // Send room created confirmation
+            JSONObject confirmation = new JSONObject();
+            confirmation.put("roomId", roomId);
+            confirmation.put("success", true);
+            simpMessagingTemplate.convertAndSendToUser(creator, "/topic/roomCreated", confirmation.toString());
+
+            broadcastRoomList();
+
+        } catch (Exception e) {
+            System.err.println("Error creating room: " + e.getMessage());
+        }
+    }
+
+    @MessageMapping("/joinRoom")
+    public void joinRoom(String roomData) {
+        try {
+            JSONObject jsonObject = new JSONObject(roomData);
+            String roomId = jsonObject.getString("roomId");
+            String userId = jsonObject.getString("userId");
+
+            System.out.println("User " + userId + " joining room: " + roomId);
+
+            Set<String> roomUsers = rooms.get(roomId);
+            if (roomUsers != null) {
+                // Remove user from current room if any
+                leaveCurrentRoom(userId);
+
+                // Add to new room
+                roomUsers.add(userId);
+                userRooms.put(userId, roomId);
+
+                // Notify all users in room about new member
+                JSONObject notification = new JSONObject();
+                notification.put("type", "userJoined");
+                notification.put("userId", userId);
+                notification.put("roomId", roomId);
+                notification.put("roomUsers", new ArrayList<>(roomUsers));
+
+                for (String user : roomUsers) {
+                    simpMessagingTemplate.convertAndSendToUser(user, "/topic/roomUpdate", notification.toString());
+                }
+
+                broadcastRoomList();
+                System.out.println("User " + userId + " joined room " + roomId);
+            }
+        } catch (Exception e) {
+            System.err.println("Error joining room: " + e.getMessage());
+        }
+    }
+
+    @MessageMapping("/leaveRoom")
+    public void leaveRoom(String userId) {
+        leaveCurrentRoom(userId);
+        broadcastRoomList();
+    }
+
+    @MessageMapping("/groupOffer")
+    public void groupOffer(String offerData) {
+        try {
+            JSONObject jsonObject = new JSONObject(offerData);
+            String fromUser = jsonObject.getString("fromUser");
+            String toUser = jsonObject.getString("toUser");
+            String roomId = jsonObject.getString("roomId");
+
+            System.out.println("Group offer from " + fromUser + " to " + toUser + " in room " + roomId);
+            simpMessagingTemplate.convertAndSendToUser(toUser, "/topic/groupOffer", offerData);
+
+        } catch (Exception e) {
+            System.err.println("Error sending group offer: " + e.getMessage());
+        }
+    }
+
+    @MessageMapping("/groupAnswer")
+    public void groupAnswer(String answerData) {
+        try {
+            JSONObject jsonObject = new JSONObject(answerData);
+            String fromUser = jsonObject.getString("fromUser");
+            String toUser = jsonObject.getString("toUser");
+            String roomId = jsonObject.getString("roomId");
+
+            System.out.println("Group answer from " + fromUser + " to " + toUser + " in room " + roomId);
+            simpMessagingTemplate.convertAndSendToUser(toUser, "/topic/groupAnswer", answerData);
+
+        } catch (Exception e) {
+            System.err.println("Error sending group answer: " + e.getMessage());
+        }
+    }
+
+    @MessageMapping("/groupCandidate")
+    public void groupCandidate(String candidateData) {
+        try {
+            JSONObject jsonObject = new JSONObject(candidateData);
+            String fromUser = jsonObject.getString("fromUser");
+            String toUser = jsonObject.getString("toUser");
+            String roomId = jsonObject.getString("roomId");
+
+            System.out.println("Group candidate from " + fromUser + " to " + toUser + " in room " + roomId);
+            simpMessagingTemplate.convertAndSendToUser(toUser, "/topic/groupCandidate", candidateData);
+
+        } catch (Exception e) {
+            System.err.println("Error sending group candidate: " + e.getMessage());
+        }
+    }
+
+    private void leaveCurrentRoom(String userId) {
+        String currentRoomId = userRooms.remove(userId);
+        if (currentRoomId != null) {
+            Set<String> roomUsers = rooms.get(currentRoomId);
+            if (roomUsers != null) {
+                roomUsers.remove(userId);
+
+                if (roomUsers.isEmpty()) {
+                    rooms.remove(currentRoomId);
+                } else {
+                    // Notify remaining users
+                    JSONObject notification = new JSONObject();
+                    notification.put("type", "userLeft");
+                    notification.put("userId", userId);
+                    notification.put("roomId", currentRoomId);
+                    notification.put("roomUsers", new ArrayList<>(roomUsers));
+
+                    for (String user : roomUsers) {
+                        simpMessagingTemplate.convertAndSendToUser(user, "/topic/roomUpdate", notification.toString());
+                    }
+                }
+            }
+        }
+    }
+
+    private void broadcastRoomList() {
+        try {
+            List<Map<String, Object>> roomList = new ArrayList<>();
+            for (Map.Entry<String, Set<String>> entry : rooms.entrySet()) {
+                Map<String, Object> roomInfo = new HashMap<>();
+                roomInfo.put("roomId", entry.getKey());
+                roomInfo.put("users", new ArrayList<>(entry.getValue()));
+                roomInfo.put("userCount", entry.getValue().size());
+                roomList.add(roomInfo);
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            String roomListJson = mapper.writeValueAsString(roomList);
+            simpMessagingTemplate.convertAndSend("/topic/rooms", roomListJson);
+            System.out.println("Broadcasting room list: " + roomListJson);
+        } catch (JsonProcessingException e) {
+            System.err.println("Error serializing room list: " + e.getMessage());
+        }
     }
 
     @MessageMapping("/call")

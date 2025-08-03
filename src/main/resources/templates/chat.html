@@ -39,8 +39,48 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- Left Sidebar - Online Users -->
-            <div class="lg:col-span-1">
+            <!-- Left Sidebar - Online Users and Rooms -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Room Management -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                        </svg>
+                        Group Calls
+                    </h2>
+
+                    <div class="space-y-3 mb-4">
+                        <input type="text" id="roomNameInput" placeholder="Enter room name" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm">
+                        <button id="createRoomBtn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition duration-200 flex items-center justify-center text-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Create Room
+                        </button>
+                    </div>
+
+                    <div id="currentRoom" class="hidden p-3 bg-blue-50 rounded-lg mb-4">
+                        <p class="text-sm text-blue-800 mb-2">
+                            <strong>Current Room:</strong> <span id="currentRoomName"></span>
+                        </p>
+                        <div class="flex justify-between">
+                            <span id="roomParticipants" class="text-xs text-blue-600"></span>
+                            <button id="leaveRoomBtn" class="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">
+                                Leave Room
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">Available Rooms</h3>
+                        <div id="roomsList" class="space-y-2">
+                            <p class="text-gray-500 text-xs text-center">No rooms available</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Connected Users -->
                 <div class="bg-white rounded-lg shadow-lg p-6">
                     <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
@@ -59,27 +99,29 @@
 
             <!-- Main Content - Video Streams -->
             <div class="lg:col-span-3">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Local Video -->
-                    <div class="bg-white rounded-lg shadow-lg p-4">
+                <!-- Video Grid -->
+                <div id="videoGrid" class="grid gap-4 mb-6">
+                    <!-- Local Video (always present) -->
+                    <div class="bg-white rounded-lg shadow-lg p-4 relative">
                         <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                             </svg>
                             Your Video
+                            <span id="callMode" class="ml-auto text-xs bg-gray-100 px-2 py-1 rounded">1-on-1</span>
                         </h3>
                         <div class="relative">
                             <video id="localVideo" autoplay muted
                                    class="w-full h-64 md:h-80 bg-gray-900 rounded-lg object-cover">
                             </video>
                             <div class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                                Local
+                                You
                             </div>
                         </div>
                     </div>
 
-                    <!-- Remote Video -->
-                    <div class="bg-white rounded-lg shadow-lg p-4">
+                    <!-- Remote Video (for 1-on-1 calls) -->
+                    <div id="remoteVideoContainer" class="bg-white rounded-lg shadow-lg p-4">
                         <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
@@ -101,6 +143,9 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Group Videos Container (dynamically populated) -->
+                    <div id="groupVideosContainer" class="contents"></div>
                 </div>
 
                 <!-- Call Controls -->
