@@ -1,9 +1,9 @@
 package com.example.webrtc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gargoylesoftware.htmlunit.javascript.host.media.rtc.RTCSessionDescription;
+import com.example.webrtc.entity.User;
+import com.example.webrtc.service.UserService;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
@@ -11,14 +11,18 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.TextMessage;
 
+import jakarta.validation.Valid;
 import java.util.ArrayList;
-import java.util.Map;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Controller
@@ -31,10 +35,78 @@ public class MainController {
     @Autowired
     SimpMessagingTemplate simpMessagingTemplate;
 
+    @Autowired
+    private UserService userService;
 
-    @RequestMapping(value = "/",method =  RequestMethod.GET)
-    public String Index(){
-        return "index";
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+
+    @RequestMapping(value = "/", method = RequestMethod.GET)
+    public String index() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !auth.getName().equals("anonymousUser")) {
+            return "redirect:/chat";
+        }
+        return "redirect:/login";
+    }
+
+    @GetMapping("/login")
+    public String login(@RequestParam(value = "error", required = false) String error,
+                       @RequestParam(value = "logout", required = false) String logout,
+                       Model model) {
+        if (error != null) {
+            model.addAttribute("error", "Invalid username or password");
+        }
+        if (logout != null) {
+            model.addAttribute("message", "You have been logged out successfully");
+        }
+        return "login";
+    }
+
+    @GetMapping("/register")
+    public String register(Model model) {
+        model.addAttribute("user", new User());
+        return "register";
+    }
+
+    @PostMapping("/register")
+    public String registerUser(@Valid @ModelAttribute("user") User user, 
+                              BindingResult bindingResult, 
+                              Model model) {
+        if (bindingResult.hasErrors()) {
+            return "register";
+        }
+
+        try {
+            userService.registerUser(user.getUsername(), user.getPassword(), user.getFullName());
+            model.addAttribute("success", "Registration successful! Please login.");
+            return "login";
+        } catch (RuntimeException e) {
+            model.addAttribute("error", e.getMessage());
+            return "register";
+        }
+    }
+
+    @GetMapping("/chat")
+    public String chat(Model model) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
+
+        // Set user as online
+        userService.setUserOnline(username, true);
+
+        model.addAttribute("currentUser", username);
+        return "chat";
+    }
+
+    @PostMapping("/logout")
+    public String logout() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && !auth.getName().equals("anonymousUser")) {
+            userService.setUserOnline(auth.getName(), false);
+        }
+        return "redirect:/login?logout=true";
     }
 
     @MessageMapping("/testServer")
@@ -53,9 +125,12 @@ public class MainController {
         users.entrySet().removeIf(entry -> entry.getKey().equals(user));
         sessions.entrySet().removeIf(entry -> entry.getValue().equals(user));
 
-        // Add new user
+        // Add new user to session tracking
         users.put(user, sessionId);
         sessions.put(sessionId, user);
+
+        // Update user online status in database
+        userService.setUserOnline(user, true);
 
         System.out.println("Current users: " + users.keySet());
         System.out.println("User Added Successfully");
@@ -85,6 +160,8 @@ public class MainController {
 
         if (user != null) {
             users.remove(user);
+            // Update user online status in database
+            userService.setUserOnline(user, false);
             System.out.println("User disconnected: " + user + " (session: " + sessionId + ")");
 
             // Broadcast updated user list to all connected clients
@@ -94,7 +171,12 @@ public class MainController {
 
     private void broadcastUserList() {
         try {
-            ArrayList<String> userList = new ArrayList<>(users.keySet());
+            // Get online users from database
+            List<User> onlineUsers = userService.getAllOnlineUsers();
+            List<String> userList = onlineUsers.stream()
+                    .map(User::getUsername)
+                    .toList();
+
             ObjectMapper mapper = new ObjectMapper();
             String userListJson = mapper.writeValueAsString(userList);
             simpMessagingTemplate.convertAndSend("/topic/users", userListJson);

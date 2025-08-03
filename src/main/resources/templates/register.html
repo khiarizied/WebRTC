@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - WebRTC Video Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#1E40AF'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full mx-4">
+        <div class="bg-white rounded-lg shadow-xl p-8">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">Create Account</h1>
+                <p class="text-gray-600">Join our video chat community</p>
+            </div>
+
+            <!-- Alerts -->
+            <div th:if="${error}" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
+                <span th:text="${error}"></span>
+            </div>
+
+            <!-- Registration Form -->
+            <form th:action="@{/register}" th:object="${user}" method="post" class="space-y-6">
+                <div>
+                    <label for="fullName" class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                    <input type="text" id="fullName" th:field="*{fullName}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                           placeholder="Enter your full name">
+                    <div th:if="${#fields.hasErrors('fullName')}" class="mt-1 text-sm text-red-600">
+                        <span th:errors="*{fullName}"></span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input type="text" id="username" th:field="*{username}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                           placeholder="Choose a unique username">
+                    <div th:if="${#fields.hasErrors('username')}" class="mt-1 text-sm text-red-600">
+                        <span th:errors="*{username}"></span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" th:field="*{password}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                           placeholder="Create a secure password">
+                    <div th:if="${#fields.hasErrors('password')}" class="mt-1 text-sm text-red-600">
+                        <span th:errors="*{password}"></span>
+                    </div>
+                </div>
+
+                <button type="submit" 
+                        class="w-full bg-primary hover:bg-secondary text-white font-medium py-2 px-4 rounded-md transition duration-200">
+                    Create Account
+                </button>
+            </form>
+
+            <!-- Login Link -->
+            <div class="mt-6 text-center">
+                <p class="text-gray-600">
+                    Already have an account? 
+                    <a th:href="@{/login}" class="text-primary hover:text-secondary font-medium">Sign in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

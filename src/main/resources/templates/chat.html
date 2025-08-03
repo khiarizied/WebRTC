@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -41,9 +41,6 @@
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <!-- Left Sidebar - Online Users -->
             <div class="lg:col-span-1">
-
-
-
                 <!-- Connected Users -->
                 <div class="bg-white rounded-lg shadow-lg p-6">
                     <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
@@ -72,7 +69,7 @@
                             Your Video
                         </h3>
                         <div class="relative">
-                            <video id="localVideo" autoplay muted 
+                            <video id="localVideo" autoplay muted
                                    class="w-full h-64 md:h-80 bg-gray-900 rounded-lg object-cover">
                             </video>
                             <div class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
@@ -91,7 +88,7 @@
                             <span id="callStatus" class="ml-auto text-sm text-gray-500"></span>
                         </h3>
                         <div class="relative">
-                            <video id="remoteVideo" autoplay 
+                            <video id="remoteVideo" autoplay
                                    class="w-full h-64 md:h-80 bg-gray-900 rounded-lg object-cover">
                             </video>
                             <div id="remoteVideoPlaceholder" class="absolute inset-0 flex items-center justify-center bg-gray-800 rounded-lg">
@@ -169,6 +166,10 @@
         </div>
     </div>
 
-    <script th:src="@{index.js}"></script>
+    <script th:src="@{/index.js}"></script>
+    <script th:inline="javascript">
+        // Set current user from server
+        window.currentUser = /*[[${currentUser}]]*/ 'defaultUser';
+    </script>
 </body>
 </html>

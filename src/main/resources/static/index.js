@@ -1,11 +1,7 @@
 // DOM Elements
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
-const localIdInp = document.getElementById("localId");
-const connectBtn = document.getElementById("connectBtn");
 const testConnection = document.getElementById("testConnection");
-const connectionStatus = document.getElementById("connectionStatus");
-const connectedAs = document.getElementById("connectedAs");
 const callStatus = document.getElementById("callStatus");
 const usersList = document.getElementById("usersList");
 const userCount = document.getElementById("userCount");
@@ -39,18 +35,7 @@ localPeer = new RTCPeerConnection(iceServers)
 // UI Helper Functions
 function updateConnectionUI(connected) {
     isConnected = connected;
-    if (connected) {
-        if (connectionStatus) connectionStatus.classList.remove('hidden');
-        if (connectedAs) connectedAs.textContent = localID;
-        connectBtn.textContent = 'Connected';
-        connectBtn.disabled = true;
-        connectBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    } else {
-        if (connectionStatus) connectionStatus.classList.add('hidden');
-        connectBtn.textContent = 'Connect';
-        connectBtn.disabled = false;
-        connectBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-    }
+    console.log('Connection status updated:', connected);
 }
 
 function updateCallUI(calling) {
@@ -289,26 +274,26 @@ navigator.mediaDevices.getUserMedia({video: true, audio: true})
     .then(stream => {
         localStream = stream
         localVideo.srcObject = stream;
+
+        // Auto-connect for authenticated users
+        autoConnect();
     })
     .catch(error => {
         console.log(error)
         alert('Failed to access camera/microphone. Please check permissions.');
     });
 
-// Connection handler
-connectBtn.onclick = () => {
-    if (!localIdInp.value.trim()) {
-        alert('Please enter your ID');
-        return;
-    }
+// Auto-connection for authenticated users
+function autoConnect() {
+    if (window.currentUser && window.currentUser !== 'defaultUser') {
+        localID = window.currentUser;
+        console.log("Auto-connecting as: " + localID);
 
-    // Connect to Websocket Server
-    var socket = new SockJS('/websocket', {debug: false});
-    stompClient = Stomp.over(socket);
-    localID = localIdInp.value.trim();
-    console.log("My ID: " + localID)
+        // Connect to Websocket Server
+        var socket = new SockJS('/websocket', {debug: false});
+        stompClient = Stomp.over(socket);
 
-    stompClient.connect({}, frame => {
+        stompClient.connect({}, frame => {
         console.log('Connected to WebSocket:', frame)
         updateConnectionUI(true);
 
@@ -420,11 +405,12 @@ connectBtn.onclick = () => {
             stompClient.send("/app/getUserList", {}, "");
         }, 500);
 
-    }, error => {
-        console.error('Failed to connect to WebSocket:', error);
-        alert('Failed to connect to server. Please try again.');
-        updateConnectionUI(false);
-    })
+        }, error => {
+            console.error('Failed to connect to WebSocket:', error);
+            alert('Failed to connect to server. Please try again.');
+            updateConnectionUI(false);
+        });
+    }
 }
 
 
