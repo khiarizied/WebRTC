@@ -3,8 +3,6 @@ const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 const localIdInp = document.getElementById("localId");
 const connectBtn = document.getElementById("connectBtn");
-const remoteIdInp = document.getElementById("remoteId");
-const callBtn = document.getElementById("callBtn");
 const testConnection = document.getElementById("testConnection");
 const connectionStatus = document.getElementById("connectionStatus");
 const connectedAs = document.getElementById("connectedAs");
@@ -47,15 +45,11 @@ function updateConnectionUI(connected) {
         connectBtn.textContent = 'Connected';
         connectBtn.disabled = true;
         connectBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        callBtn.disabled = false;
-        callBtn.classList.remove('opacity-50', 'cursor-not-allowed');
     } else {
         if (connectionStatus) connectionStatus.classList.add('hidden');
         connectBtn.textContent = 'Connect';
         connectBtn.disabled = false;
         connectBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        callBtn.disabled = true;
-        callBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
 }
 
@@ -98,19 +92,24 @@ function updateUsersList(users) {
     }
 
     usersList.innerHTML = users.map(user => `
-        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
             <div class="flex items-center">
-                <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                <span class="inline-block w-3 h-3 bg-green-500 rounded-full mr-3"></span>
                 <span class="text-sm font-medium text-gray-700">${user}</span>
                 ${user === localID ? '<span class="ml-2 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">(You)</span>' : ''}
             </div>
-            ${user !== localID ? `<button onclick="quickCall('${user}')" class="text-xs bg-primary text-white px-2 py-1 rounded hover:bg-secondary transition duration-200">Call</button>` : ''}
+            ${user !== localID ? `
+                <button onclick="quickCall('${user}')" class="bg-green-600 hover:bg-green-700 text-white p-2 rounded-full transition duration-200 flex items-center justify-center" title="Call ${user}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                    </svg>
+                </button>
+            ` : ''}
         </div>
     `).join('');
 }
 
 function quickCall(userId) {
-    remoteIdInp.value = userId;
     if (isConnected && !inCall) {
         initiateCall(userId);
     }
@@ -253,7 +252,6 @@ function endCall() {
 
     updateCallUI(false);
     remoteID = null;
-    remoteIdInp.value = '';
 }
 
 // Event Listeners
@@ -429,21 +427,7 @@ connectBtn.onclick = () => {
     })
 }
 
-// Call handler
-callBtn.onclick = () => {
-    if (!remoteIdInp.value.trim()) {
-        alert('Please enter remote user ID');
-        return;
-    }
 
-    if (!isConnected) {
-        alert('Please connect first');
-        return;
-    }
-
-    const userId = remoteIdInp.value.trim();
-    initiateCall(userId);
-}
 
 // Test connection handler
 if (testConnection) {
