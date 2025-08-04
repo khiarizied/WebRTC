@@ -272,16 +272,61 @@ function updateVideoGrid() {
         if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-2 gap-4 transition-all duration-500';
         updateCallMode('Group');
     } else if (participantCount <= 6) {
-        videoGrid.className = 'grid grid-cols-1 gap-4 mb-6 transition-all duration-500';
+        videoGrid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 transition-all duration-500';
         if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
-        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-2 md:grid-cols-3 gap-4 transition-all duration-500';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-all duration-500';
+        updateCallMode('Group');
+    } else if (participantCount <= 9) {
+        videoGrid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 transition-all duration-500';
+        if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-all duration-500';
+        updateCallMode('Group');
+    } else if (participantCount <= 12) {
+        videoGrid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 transition-all duration-500';
+        if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 transition-all duration-500';
+        updateCallMode('Group');
+    } else if (participantCount <= 16) {
+        videoGrid.className = 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6 transition-all duration-500';
+        if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 transition-all duration-500';
         updateCallMode('Group');
     } else {
-        videoGrid.className = 'grid grid-cols-1 gap-4 mb-6 transition-all duration-500';
+        // For very large groups, use a scrolling grid with smaller video tiles
+        videoGrid.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-6 transition-all duration-500';
         if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
-        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-2 md:grid-cols-4 gap-3 transition-all duration-500';
-        updateCallMode('Group');
+        if (groupVideosContainer) {
+            groupVideosContainer.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[70vh] overflow-y-auto p-2 transition-all duration-500';
+            // Add a container with fixed height and scrolling for large groups
+            groupVideosContainer.style.maxHeight = '70vh';
+            groupVideosContainer.style.overflowY = 'auto';
+        }
+        updateCallMode('Large Group');
     }
+
+    // Add participant count badge to each video container for large groups
+    if (participantCount > 8) {
+        addParticipantBadges();
+    } else {
+        removeParticipantBadges();
+    }
+}
+
+function addParticipantBadges() {
+    const videoContainers = document.querySelectorAll('[id^="video-container-"]');
+    videoContainers.forEach(container => {
+        const userId = container.id.replace('video-container-', '');
+        const badge = document.createElement('div');
+        badge.className = 'absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full z-10';
+        badge.textContent = userId;
+        badge.id = `badge-${userId}`;
+        container.querySelector('.relative').appendChild(badge);
+    });
+}
+
+function removeParticipantBadges() {
+    const badges = document.querySelectorAll('[id^="badge-"]');
+    badges.forEach(badge => badge.remove());
 }
 
 function updateParticipantCount() {
@@ -319,34 +364,64 @@ function hideCallStatusBanner() {
 }
 
 function createVideoElement(userId, stream) {
+    // Check if video element already exists
+    const existingContainer = document.getElementById(`video-container-${userId}`);
+    if (existingContainer) {
+        console.log(`Video element for ${userId} already exists. Updating stream.`);
+        const videoElement = document.getElementById(`video-${userId}`);
+        if (videoElement && stream) {
+            videoElement.srcObject = stream;
+        }
+        return videoElement;
+    }
+
+    // Create new video container
     const videoContainer = document.createElement('div');
-    videoContainer.className = 'bg-white rounded-lg shadow-lg p-4 transform transition-all duration-500 opacity-0 scale-95 hover:shadow-xl';
+
+    // Adjust size based on number of participants
+    const participantCount = peerConnections.size + 1;
+    let containerSize = 'h-48 md:h-64';
+    let textSize = 'text-sm';
+
+    if (participantCount > 8) {
+        containerSize = 'h-32 md:h-40'; // Smaller videos for large groups
+        textSize = 'text-xs';
+    } else if (participantCount > 4) {
+        containerSize = 'h-40 md:h-52'; // Medium videos for medium groups
+        textSize = 'text-xs';
+    }
+
+    videoContainer.className = `bg-white rounded-lg shadow-lg p-3 transform transition-all duration-500 opacity-0 scale-95 hover:shadow-xl ${participantCount > 8 ? 'border border-gray-200' : ''}`;
     videoContainer.id = `video-container-${userId}`;
 
     videoContainer.innerHTML = `
-        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-            <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-            <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <h3 class="text-${textSize} font-semibold text-gray-800 mb-2 flex items-center">
+            <div class="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
+            <svg class="w-4 h-4 mr-1 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
             </svg>
             ${userId}
-            <span class="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Online</span>
+            <span class="ml-auto text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Online</span>
         </h3>
         <div class="relative">
-            <video id="video-${userId}" autoplay class="w-full h-48 md:h-64 bg-gray-900 rounded-lg object-cover"></video>
-            <div class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded flex items-center">
-                <div class="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></div>
-                ${userId}
+            <video id="video-${userId}" autoplay class="w-full ${containerSize} bg-gray-900 rounded-lg object-cover"></video>
+            <div class="absolute top-1 left-1 bg-black bg-opacity-50 text-white text-xs px-1 py-0.5 rounded flex items-center">
+                <div class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1 animate-pulse"></div>
+                <span class="truncate max-w-[60px]">${userId}</span>
             </div>
-            <div class="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="absolute top-1 right-1 bg-black bg-opacity-50 text-white p-0.5 rounded-full">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                 </svg>
             </div>
-            <div id="connection-status-${userId}" class="absolute bottom-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
-                <div class="w-2 h-2 bg-white rounded-full mr-1"></div>
+            <div id="connection-status-${userId}" class="absolute bottom-1 left-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded-full flex items-center">
+                <div class="w-1.5 h-1.5 bg-white rounded-full mr-1"></div>
                 Connected
             </div>
+            ${participantCount > 8 ? `
+            <div class="absolute bottom-1 right-1 bg-black bg-opacity-70 text-white text-xs px-1 py-0.5 rounded-full">
+                <span>${peerConnections.size + 1}</span>
+            </div>` : ''}
         </div>
     `;
 
@@ -376,6 +451,11 @@ function createVideoElement(userId, stream) {
 
         videoElement.addEventListener('pause', () => {
             showVideoStatus(userId, 'Paused', 'bg-gray-500');
+        });
+
+        videoElement.addEventListener('error', (e) => {
+            console.error('Video error for', userId, e);
+            showVideoStatus(userId, 'Error', 'bg-red-500');
         });
     }
 
@@ -476,19 +556,65 @@ function updateRoomsList(rooms) {
         showRoomNotification(newRooms);
     }
 
-    roomsList.innerHTML = rooms.map(room => `
-        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
-            <div class="flex-1">
-                <div class="text-sm font-medium text-gray-700">${room.roomId}</div>
-                <div class="text-xs text-gray-500">${room.userCount} participant${room.userCount !== 1 ? 's' : ''}</div>
+    // Sort rooms by participant count (rooms with more participants first)
+    const sortedRooms = [...rooms].sort((a, b) => b.userCount - a.userCount);
+
+    roomsList.innerHTML = sortedRooms.map(room => {
+        // Determine room status based on participant count
+        let roomStatus = '';
+        let statusClass = '';
+
+        if (room.userCount === 0) {
+            roomStatus = 'Empty';
+            statusClass = 'text-gray-500';
+        } else if (room.userCount === 1) {
+            roomStatus = 'Waiting';
+            statusClass = 'text-yellow-500';
+        } else if (room.userCount <= 4) {
+            roomStatus = 'Active';
+            statusClass = 'text-green-500';
+        } else {
+            roomStatus = 'Busy';
+            statusClass = 'text-purple-500';
+        }
+
+        // Determine button class based on room status
+        let buttonClass = 'text-xs px-2 py-1 rounded transition duration-200';
+        if (room.userCount === 0) {
+            buttonClass += ' bg-gray-400 hover:bg-gray-500 text-white';
+        } else if (room.userCount >= 8) {
+            buttonClass += ' bg-red-600 hover:bg-red-700 text-white';
+        } else {
+            buttonClass += ' bg-blue-600 hover:bg-blue-700 text-white';
+        }
+
+        return `
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200 border border-gray-200">
+                <div class="flex-1">
+                    <div class="flex items-center">
+                        <div class="text-sm font-medium text-gray-700">${room.roomId}</div>
+                        <span class="ml-2 text-xs px-2 py-0.5 rounded-full ${statusClass} bg-opacity-20 ${statusClass.replace('text-', 'bg-')}">
+                            ${roomStatus}
+                        </span>
+                    </div>
+                    <div class="flex items-center mt-1 text-xs text-gray-500">
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                        ${room.userCount} participant${room.userCount !== 1 ? 's' : ''}
+                        ${room.userCount > 0 ? `<span class="mx-2">•</span>` : ''}
+                        ${room.userCount > 0 ? `<span class="text-xs">${room.userCount > 7 ? 'Room full' : 'Available'}</span>` : ''}
+                    </div>
+                </div>
+                ${!currentRoomId ? `
+                    <button onclick="joinRoom('${room.roomId}')" ${room.userCount >= 8 ? 'disabled' : ''} 
+                            class="${buttonClass} ${room.userCount >= 8 ? 'opacity-50 cursor-not-allowed' : ''}">
+                        ${room.userCount >= 8 ? 'Full' : 'Join'}
+                    </button>
+                ` : ''}
             </div>
-            ${!currentRoomId ? `
-                <button onclick="joinRoom('${room.roomId}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition duration-200">
-                    Join
-                </button>
-            ` : ''}
-        </div>
-    `).join('');
+        `;
+    }).join('');
 
     // Show welcome message for first-time users with available rooms
     if (rooms.length > 0 && !currentRoomId && isConnected) {
@@ -641,19 +767,30 @@ if (leaveRoomBtn) leaveRoomBtn.onclick = leaveRoom;
 function createRoom() {
     const roomName = roomNameInput?.value?.trim();
     if (!roomName) {
-        alert('Please enter a room name');
+        showNotification('Please enter a room name', 'warning');
         return;
     }
 
     if (!isConnected) {
-        alert('Please connect first');
+        showNotification('Please connect first', 'error');
+        return;
+    }
+
+    // Check if already in a room
+    if (currentRoomId) {
+        showNotification('You are already in a room. Please leave first.', 'warning');
         return;
     }
 
     console.log('Creating room:', roomName);
+
+    // Show loading notification
+    showNotification(`Creating room "${roomName}"...`, 'info');
+
     stompClient.send("/app/createRoom", {}, JSON.stringify({
         roomId: roomName,
-        creator: localID
+        creator: localID,
+        maxParticipants: 16 // Set a reasonable maximum for group calls
     }));
 
     roomNameInput.value = '';
@@ -661,15 +798,32 @@ function createRoom() {
 
 function joinRoom(roomId) {
     if (!isConnected) {
-        alert('Please connect first');
+        showNotification('Please connect first', 'error');
+        return;
+    }
+
+    // Check if already in a room
+    if (currentRoomId) {
+        showNotification('You are already in a room. Please leave first.', 'warning');
         return;
     }
 
     console.log('Joining room:', roomId);
+
+    // Show loading indicator
+    showNotification(`Joining room ${roomId}...`, 'info');
+
     stompClient.send("/app/joinRoom", {}, JSON.stringify({
         roomId: roomId,
         userId: localID
     }));
+
+    // Set group call mode
+    isGroupCall = true;
+
+    // Update UI immediately
+    updateCallMode('Group');
+    updateVideoGrid();
 }
 
 function leaveRoom() {
@@ -690,6 +844,12 @@ function leaveRoom() {
 }
 
 function createPeerConnection(userId) {
+    // Check if a peer connection already exists for this user
+    if (peerConnections.has(userId)) {
+        console.log(`Peer connection already exists for user: ${userId}. Returning existing connection.`);
+        return peerConnections.get(userId);
+    }
+
     const peerConnection = new RTCPeerConnection(iceServers);
 
     // Add local stream to peer connection
@@ -703,15 +863,26 @@ function createPeerConnection(userId) {
     peerConnection.ontrack = (event) => {
         console.log('Received remote stream from:', userId);
         const remoteStream = event.streams[0];
-        remoteStreams.set(userId, remoteStream);
 
-        if (isGroupCall) {
-            createVideoElement(userId, remoteStream);
-        } else {
-            // For 1-on-1 calls, use the existing remote video element
-            if (remoteVideo) {
-                remoteVideo.srcObject = remoteStream;
-                if (remoteVideoPlaceholder) remoteVideoPlaceholder.classList.add('hidden');
+        // Only create video element if it doesn't already exist
+        if (!remoteStreams.has(userId)) {
+            remoteStreams.set(userId, remoteStream);
+
+            if (isGroupCall) {
+                // Check if video element already exists
+                const existingVideo = document.getElementById(`video-${userId}`);
+                if (!existingVideo) {
+                    createVideoElement(userId, remoteStream);
+                } else {
+                    // Update existing video element
+                    existingVideo.srcObject = remoteStream;
+                }
+            } else {
+                // For 1-on-1 calls, use the existing remote video element
+                if (remoteVideo) {
+                    remoteVideo.srcObject = remoteStream;
+                    if (remoteVideoPlaceholder) remoteVideoPlaceholder.classList.add('hidden');
+                }
             }
         }
     };
@@ -810,12 +981,22 @@ async function handleCandidate(fromUser, candidate) {
     try {
         const peerConnection = peerConnections.get(fromUser);
         if (peerConnection) {
+            // Validate candidate data
+            if (!candidate || !candidate.id) {
+                console.warn("Received invalid candidate data from:", fromUser);
+                return;
+            }
+
             const iceCandidate = new RTCIceCandidate({
-                sdpMLineIndex: candidate.label,
+                sdpMid: candidate.sdpMid || null,
+                sdpMLineIndex: candidate.label !== undefined ? candidate.label : null,
                 candidate: candidate.id
             });
+
             await peerConnection.addIceCandidate(iceCandidate);
             console.log('Added ICE candidate from:', fromUser);
+        } else {
+            console.warn("No peer connection found for user:", fromUser);
         }
     } catch (error) {
         console.error('Error handling candidate from:', fromUser, error);
@@ -967,12 +1148,27 @@ function autoConnect() {
         // Subscribe to ICE candidates
         stompClient.subscribe('/user/' + localID + "/topic/candidate", (answer) => {
             console.log("Candidate Came")
-            var o = JSON.parse(answer.body)["candidate"]
-            var iceCandidate = new RTCIceCandidate({
-                sdpMLineIndex: o["lable"],
-                candidate: o["id"],
-            })
-            localPeer.addIceCandidate(iceCandidate)
+            try {
+                var o = JSON.parse(answer.body)["candidate"]
+
+                // Check if candidate data is valid
+                if (!o || !o.id) {
+                    console.warn("Received invalid candidate data");
+                    return;
+                }
+
+                var iceCandidate = new RTCIceCandidate({
+                    sdpMid: o.sdpMid || null,
+                    sdpMLineIndex: o.lable !== undefined ? o.lable : null,
+                    candidate: o["id"]
+                })
+
+                localPeer.addIceCandidate(iceCandidate).catch(e => {
+                    console.error("Error adding ICE candidate:", e);
+                });
+            } catch (e) {
+                console.error("Error parsing candidate:", e);
+            }
         });
 
         // Subscribe to group call messages
@@ -999,7 +1195,12 @@ function autoConnect() {
 
                     // If this is not me joining, create offer
                     if (data.userId !== localID) {
-                        setTimeout(() => createOfferForUser(data.userId), 1000);
+                        // Check if we already have a peer connection for this user
+                        if (!peerConnections.has(data.userId)) {
+                            setTimeout(() => createOfferForUser(data.userId), 1000);
+                        } else {
+                            console.log(`Peer connection already exists for user: ${data.userId}. Skipping duplicate offer creation.`);
+                        }
                     }
                 } else if (data.type === 'userLeft' && data.roomId === currentRoomId) {
                     console.log('User left room:', data.userId);
