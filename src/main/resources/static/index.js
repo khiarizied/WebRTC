@@ -531,6 +531,32 @@ function requestRoomList() {
     }
 }
 
+function refreshRoomListUI() {
+    if (!roomsList || availableRooms.size === 0) return;
+    
+    // Get current rooms from our map
+    const rooms = Array.from(availableRooms.values());
+    updateRoomsList(rooms);
+}
+
+function renderRoomButton(room) {
+    if (currentRoomId === room.roomId) {
+        return `
+            <button onclick="leaveRoom()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition duration-200">
+                Leave
+            </button>
+        `;
+    } else if (!currentRoomId) {
+        return `
+            <button onclick="joinRoom('${room.roomId}')" ${room.userCount >= 8 ? 'disabled' : ''}
+                    class="${buttonClass} ${room.userCount >= 8 ? 'opacity-50 cursor-not-allowed' : ''}">
+                ${room.userCount >= 8 ? 'Full' : 'Join'}
+            </button>
+        `;
+    }
+    return '';
+}
+
 function updateRoomsList(rooms) {
     const previousRoomsCount = availableRooms.size;
     availableRooms.clear();
@@ -541,6 +567,11 @@ function updateRoomsList(rooms) {
         roomsList.innerHTML = '<p class="text-gray-500 text-xs text-center">No rooms available</p>';
         return;
     }
+    
+    // Store rooms in our map
+    rooms.forEach(room => {
+        availableRooms.set(room.roomId, room);
+    });
 
     // Check for new rooms to show notification
     const newRooms = [];
@@ -750,6 +781,21 @@ function toggleVideo() {
                 videoBtn.classList.toggle('bg-gray-600', !isVideoOff);
                 videoBtn.title = isVideoOff ? 'Turn on camera' : 'Turn off camera';
             }
+            
+            // Update camera status icon
+            const camStatus = document.getElementById('camStatus');
+            if (camStatus) {
+                const svg = camStatus.querySelector('svg');
+                if (svg) {
+                    if (isVideoOff) {
+                        // Camera off icon - add slash
+                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>';
+                    } else {
+                        // Camera on icon - original path
+                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>';
+                    }
+                }
+            }
         }
     }
 }
@@ -835,10 +881,14 @@ function joinRoom(roomId) {
 
     // Set group call mode
     isGroupCall = true;
+    currentRoomId = roomId;
 
     // Update UI immediately
     updateCallMode('Group');
     updateVideoGrid();
+    
+    // Update room list UI to show Leave button for joined room
+    refreshRoomListUI();
 }
 
 function leaveRoom() {
@@ -855,6 +905,11 @@ function leaveRoom() {
 
         stompClient.send("/app/leaveRoom", {}, localID);
         updateCurrentRoomUI(null, []);
+        
+        // Reset room ID and update room list UI
+        currentRoomId = null;
+        isGroupCall = false;
+        refreshRoomListUI();
     }
 }
 
