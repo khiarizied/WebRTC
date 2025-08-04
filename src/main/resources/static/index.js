@@ -146,12 +146,36 @@ function acceptCall() {
     console.log("Accepting call from:", remoteID);
     hideCallModal();
 
+    // Update UI to show call is being established
+    const remoteVideoPlaceholder = document.getElementById('remoteVideoPlaceholder');
+    if (remoteVideoPlaceholder) {
+        remoteVideoPlaceholder.innerHTML = `
+            <div class="text-center text-gray-400">
+                <div class="w-16 h-16 mx-auto mb-4 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                <p>Accepting call from ${remoteID}...</p>
+                <p class="text-xs mt-2 opacity-75">Establishing connection</p>
+            </div>
+        `;
+    }
+
+    // Show notification
+    showNotification(`Accepted call from ${remoteID}`, 'success');
+
     // Send acceptance
     stompClient.send("/app/callResponse", {}, JSON.stringify({
         "callTo": remoteID,
         "callFrom": localID,
         "type": "call_accepted"
     }));
+
+    // Update remote video title
+    const remoteVideoTitle = document.getElementById('remoteVideoTitle');
+    if (remoteVideoTitle) {
+        remoteVideoTitle.textContent = `${remoteID}'s Video`;
+    }
+
+    // Show call status banner
+    showCallStatusBanner(2);
 
     // Start WebRTC offer
     startCall();
@@ -226,45 +250,188 @@ function updateCallMode(mode) {
 function updateVideoGrid() {
     const participantCount = peerConnections.size + 1; // +1 for local user
 
-    if (participantCount <= 2) {
-        videoGrid.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6';
-        remoteVideoContainer.style.display = 'block';
-    } else if (participantCount <= 4) {
-        videoGrid.className = 'grid grid-cols-2 gap-4 mb-6';
-        remoteVideoContainer.style.display = 'none';
+    // Update participant count display
+    updateParticipantCount();
+
+    // Show/hide call status banner
+    if (participantCount > 1) {
+        showCallStatusBanner(participantCount);
     } else {
-        videoGrid.className = 'grid grid-cols-2 md:grid-cols-3 gap-4 mb-6';
-        remoteVideoContainer.style.display = 'none';
+        hideCallStatusBanner();
+    }
+
+    // Update video grid layout based on participant count
+    if (participantCount <= 2) {
+        videoGrid.className = 'grid grid-cols-1 md:grid-cols-2 gap-6 transition-all duration-500';
+        if (remoteVideoContainer) remoteVideoContainer.style.display = 'block';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid gap-4 transition-all duration-500';
+        updateCallMode('1-on-1');
+    } else if (participantCount <= 4) {
+        videoGrid.className = 'grid grid-cols-2 gap-4 mb-6 transition-all duration-500';
+        if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-2 gap-4 transition-all duration-500';
+        updateCallMode('Group');
+    } else if (participantCount <= 6) {
+        videoGrid.className = 'grid grid-cols-1 gap-4 mb-6 transition-all duration-500';
+        if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-2 md:grid-cols-3 gap-4 transition-all duration-500';
+        updateCallMode('Group');
+    } else {
+        videoGrid.className = 'grid grid-cols-1 gap-4 mb-6 transition-all duration-500';
+        if (remoteVideoContainer) remoteVideoContainer.style.display = 'none';
+        if (groupVideosContainer) groupVideosContainer.className = 'grid grid-cols-2 md:grid-cols-4 gap-3 transition-all duration-500';
+        updateCallMode('Group');
+    }
+}
+
+function updateParticipantCount() {
+    const participantCount = peerConnections.size + 1;
+    const countElement = document.getElementById('participantCount');
+    if (countElement) {
+        countElement.textContent = `${participantCount} participant${participantCount > 1 ? 's' : ''}`;
+        countElement.className = participantCount > 1 
+            ? 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full animate-pulse'
+            : 'text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full';
+    }
+}
+
+function showCallStatusBanner(participantCount) {
+    const banner = document.getElementById('callStatusBanner');
+    const statusMessage = document.getElementById('statusMessage');
+    const statusDetails = document.getElementById('statusDetails');
+    const statusIcon = document.getElementById('statusIcon');
+
+    if (banner && statusMessage && statusDetails && statusIcon) {
+        banner.className = 'mb-6 p-4 rounded-lg border-l-4 border-green-500 bg-green-50 transition-all duration-300';
+        banner.classList.remove('hidden');
+
+        statusIcon.innerHTML = '<div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>';
+        statusMessage.textContent = isGroupCall ? 'Group Call Active' : 'Call Connected';
+        statusDetails.textContent = `${participantCount} participants in the call`;
+    }
+}
+
+function hideCallStatusBanner() {
+    const banner = document.getElementById('callStatusBanner');
+    if (banner) {
+        banner.classList.add('hidden');
     }
 }
 
 function createVideoElement(userId, stream) {
     const videoContainer = document.createElement('div');
-    videoContainer.className = 'bg-white rounded-lg shadow-lg p-4';
+    videoContainer.className = 'bg-white rounded-lg shadow-lg p-4 transform transition-all duration-500 opacity-0 scale-95 hover:shadow-xl';
     videoContainer.id = `video-container-${userId}`;
 
     videoContainer.innerHTML = `
         <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+            <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
             </svg>
             ${userId}
+            <span class="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Online</span>
         </h3>
         <div class="relative">
             <video id="video-${userId}" autoplay class="w-full h-48 md:h-64 bg-gray-900 rounded-lg object-cover"></video>
-            <div class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+            <div class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded flex items-center">
+                <div class="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></div>
                 ${userId}
+            </div>
+            <div class="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                </svg>
+            </div>
+            <div id="connection-status-${userId}" class="absolute bottom-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
+                <div class="w-2 h-2 bg-white rounded-full mr-1"></div>
+                Connected
             </div>
         </div>
     `;
 
-    groupVideosContainer.appendChild(videoContainer);
+    // Add to group videos container
+    if (groupVideosContainer) {
+        groupVideosContainer.appendChild(videoContainer);
+    }
+
+    // Animate in
+    setTimeout(() => {
+        videoContainer.classList.remove('opacity-0', 'scale-95');
+        videoContainer.classList.add('opacity-100', 'scale-100');
+    }, 100);
 
     const videoElement = document.getElementById(`video-${userId}`);
-    videoElement.srcObject = stream;
+    if (videoElement && stream) {
+        videoElement.srcObject = stream;
+
+        // Show loading indicator until video starts playing
+        videoElement.addEventListener('loadstart', () => {
+            showVideoStatus(userId, 'Loading...', 'bg-yellow-500');
+        });
+
+        videoElement.addEventListener('playing', () => {
+            showVideoStatus(userId, 'Connected', 'bg-green-500');
+        });
+
+        videoElement.addEventListener('pause', () => {
+            showVideoStatus(userId, 'Paused', 'bg-gray-500');
+        });
+    }
 
     updateVideoGrid();
+    updateParticipantCount();
+    showNotification(`${userId} joined the call`, 'success');
+
     return videoElement;
+}
+
+function showVideoStatus(userId, status, bgColor) {
+    const statusElement = document.getElementById(`connection-status-${userId}`);
+    if (statusElement) {
+        statusElement.className = `absolute bottom-2 left-2 ${bgColor} text-white text-xs px-2 py-1 rounded-full flex items-center transition-all duration-300`;
+        statusElement.innerHTML = `
+            <div class="w-2 h-2 bg-white rounded-full mr-1 ${status === 'Connected' ? 'animate-pulse' : ''}"></div>
+            ${status}
+        `;
+    }
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full ${
+        type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' :
+        type === 'warning' ? 'bg-yellow-500 text-white' :
+        'bg-blue-500 text-white'
+    }`;
+
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                ${type === 'success' ? 
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>' :
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+                }
+            </svg>
+            ${message}
+        </div>
+    `;
+
+    document.body.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+    }, 100);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 3000);
 }
 
 function removeVideoElement(userId) {

@@ -27,4 +27,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying
     @Query("UPDATE User u SET u.isOnline = false")
     void setAllUsersOffline();
+    
 }
